@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LaporWarga – Pengaduan Layanan Publik</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f4ee;--card:#fff;--ink:#16213e;--mute:#5d6682;--line:#dcd8cb;--navy:#16285a;--gold:#b8860b;--baru:#b3261e;--proses:#9a6700;--selesai:#1f7a4d;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1527;--card:#18203a;--ink:#eef0f7;--mute:#a3abc4;--line:#2c3556;--navy:#c9d4ff;--gold:#e0b84a;--baru:#ff8a80;--proses:#ffcb6b;--selesai:#6fd7a2}}
+:root[data-theme="dark"]{--bg:#0f1527;--card:#18203a;--ink:#eef0f7;--mute:#a3abc4;--line:#2c3556;--navy:#c9d4ff;--gold:#e0b84a;--baru:#ff8a80;--proses:#ffcb6b;--selesai:#6fd7a2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Public Sans",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:28px;font-weight:800;margin:8px 0 4px;color:var(--navy);letter-spacing:-.5px}
+.sub{color:var(--mute);margin:0 0 20px}
+.stats{display:flex;gap:8px;margin-bottom:20px}
+.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:24px}
+.stat span{font-size:13px;color:var(--mute)}
+form,.item{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 4px}
+label:first-child{margin-top:0}
+input,select,textarea{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+textarea{min-height:84px;resize:vertical}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 16px;cursor:pointer}
+.primary{width:100%;margin-top:16px;background:var(--navy);color:var(--bg)}
+h2{font-size:18px;margin:28px 0 10px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:6px 12px;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:99px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--navy);color:var(--bg);border-color:var(--navy)}
+.item{margin-bottom:10px}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.item h3{margin:0;font-size:16px}
+.meta{font-size:13px;color:var(--mute);margin:2px 0 8px}
+.badge{font-size:13px;font-weight:600;padding:2px 10px;border-radius:99px;border:1.5px solid currentColor;white-space:nowrap}
+.Baru{color:var(--baru)}.Diproses{color:var(--proses)}.Selesai{color:var(--selesai)}
+.act{margin-top:10px;background:transparent;border:1px solid var(--line);color:var(--ink);padding:8px 12px;font-size:14px}
+.empty{color:var(--mute);text-align:center;padding:24px}
+.note{font-size:13px;color:var(--mute);margin-top:24px}
+</style>
+</head>
+<body>
+<main>
+<h1>LaporWarga</h1>
+<p class="sub">Sampaikan keluhan layanan publik di lingkungan Anda. Petugas memantau dan memperbarui statusnya.</p>
+
+<div class="stats" id="stats"></div>
+
+<form id="form">
+  <label for="nama">Nama pelapor</label>
+  <input id="nama" required maxlength="40" placeholder="Contoh: Budi Santoso">
+  <label for="kategori">Kategori</label>
+  <select id="kategori">
+    <option>Jalan rusak</option><option>Sampah</option><option>Lampu jalan</option>
+    <option>Air bersih</option><option>Pelayanan administrasi</option><option>Keamanan</option>
+  </select>
+  <label for="lokasi">Lokasi (RT/RW, kelurahan)</label>
+  <input id="lokasi" required maxlength="60" placeholder="Contoh: RT 03/RW 05, Kel. Margonda">
+  <label for="isi">Isi laporan</label>
+  <textarea id="isi" required maxlength="300" placeholder="Jelaskan masalahnya secara singkat"></textarea>
+  <button class="primary" type="submit">Kirim laporan</button>
+</form>
+
+<h2>Daftar laporan</h2>
+<div class="filters" id="filters"></div>
+<div id="list"></div>
+<p class="note">Data tersimpan di perangkat ini. Tombol status mewakili peran petugas.</p>
+</main>
+
+<script>
+// 1. DATA: semua laporan disimpan dalam array, lalu disimpan ke browser (localStorage)
+let laporan = [];
+try { laporan = JSON.parse(localStorage.getItem("laporan") || "[]"); } catch (e) { laporan = []; }
+let filter = "Semua";
+const STATUS = ["Baru", "Diproses", "Selesai"];
+
+function simpan() {
+  try { localStorage.setItem("laporan", JSON.stringify(laporan)); } catch (e) {}
+}
+
+// 2. TAMBAH LAPORAN: dipanggil saat form dikirim
+document.getElementById("form").addEventListener("submit", function (e) {
+  e.preventDefault();
+  laporan.unshift({
+    id: Date.now(),
+    nama: nama.value.trim(),
+    kategori: kategori.value,
+    lokasi: lokasi.value.trim(),
+    isi: isi.value.trim(),
+    status: "Baru",
+    waktu: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+  });
+  simpan();
+  e.target.reset();
+  tampil();
+});
+
+// 3. UBAH STATUS: Baru -> Diproses -> Selesai
+function majukan(id) {
+  const l = laporan.find(x => x.id === id);
+  l.status = STATUS[Math.min(STATUS.indexOf(l.status) + 1, 2)];
+  simpan();
+  tampil();
+}
+
+function hapus(id) {
+  laporan = laporan.filter(x => x.id !== id);
+  simpan();
+  tampil();
+}
+
+// 4. TAMPILKAN: membuat ulang statistik, filter, dan daftar
+function esc(t) {
+  const d = document.createElement("div");
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function tampil() {
+  document.getElementById("stats").innerHTML =
+    [["Total", laporan.length], ...STATUS.map(s => [s, laporan.filter(l => l.status === s).length])]
+      .map(([n, v]) => `<div class="stat"><b>${v}</b><span>${n}</span></div>`).join("");
+
+  document.getElementById("filters").innerHTML = ["Semua", ...STATUS]
+    .map(s => `<button class="chip" aria-pressed="${s === filter}" onclick="filter='${s}';tampil()">${s}</button>`).join("");
+
+  const data = laporan.filter(l => filter === "Semua" || l.status === filter);
+  document.getElementById("list").innerHTML = data.length ? data.map(l => `
+    <article class="item">
+      <div class="top"><h3>${esc(l.kategori)}</h3><span class="badge ${l.status}">${l.status}</span></div>
+      <p class="meta">${esc(l.lokasi)} · ${esc(l.nama)} · ${l.waktu}</p>
+      <div>${esc(l.isi)}</div>
+      ${l.status !== "Selesai" ? `<button class="act" onclick="majukan(${l.id})">Tandai ${STATUS[STATUS.indexOf(l.status) + 1].toLowerCase()}</button>` : ""}
+      <button class="act" onclick="hapus(${l.id})">Hapus</button>
+    </article>`).join("") : `<div class="empty">Belum ada laporan. Isi formulir di atas untuk membuat laporan pertama.</div>`;
+}
+
+tampil();
+</script>
+</body>
+</html>
